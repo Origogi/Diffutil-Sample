@@ -1,6 +1,8 @@
 package com.jerryppo.diffutilsample;
 
+import android.annotation.TargetApi;
 import android.content.Context;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AppCompatActivity;
@@ -15,8 +17,10 @@ import android.widget.ImageView;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -34,10 +38,21 @@ public class MainActivity extends AppCompatActivity {
 
         Random random = new Random();
 
+        Set<Integer> set = new HashSet<>();
+
 
         Button add = findViewById(R.id.add);
         add.setOnClickListener(v -> {
-                    int randomValue = random.nextInt(10000);
+
+
+                    int randomValue;
+
+                    do {
+                        randomValue = random.nextInt(10000);
+                    }
+                    while (set.contains(randomValue));
+
+
                     Item item = new Item(randomValue + "");
                     adapter.addItem(item);
                 }
@@ -50,11 +65,28 @@ public class MainActivity extends AppCompatActivity {
 
                     if (size > 0) {
                         int index = randomValue % size;
-                        adapter.remove(index);
+                        int id = adapter.remove(index);
+                        set.remove(id);
                     }
 
                 }
         );
+
+        Button sort = findViewById(R.id.sort);
+        sort.setOnClickListener(v -> {
+            adapter.sort();
+        });
+
+        Button like = findViewById(R.id.like);
+        like.setOnClickListener(v -> {
+            int randomValue = random.nextInt(10000);
+            int size = adapter.items.size();
+
+            if (size > 0) {
+                int index = randomValue % size;
+                adapter.updateLikeOrUnLike(index);
+            }
+        });
 
 
     }
@@ -84,7 +116,10 @@ class DiffCallback extends DiffUtil.Callback {
     @Override
     public boolean areItemsTheSame(int oldIndex, int newIndex) {
         System.out.println("hello11");
-        return newItems.get(newIndex).equals(oldItems.get(oldIndex));
+
+        Item oldItem = oldItems.get(oldIndex);
+        Item newItem = newItems.get(newIndex);
+        return oldItem.title.equals(newItem.title);
     }
 
     @Override
@@ -104,6 +139,11 @@ class Item {
 
     Item(String title) {
         this.title = title;
+    }
+
+    Item(String title, boolean like) {
+        this.title = title;
+        this.like = like;
     }
 }
 
@@ -134,10 +174,16 @@ class Adapter extends RecyclerView.Adapter<MyViewHolder> {
     }
 
     void addItem(Item item) {
-        List<Item> oldItems = items;
+
+
         List<Item> newItems = new ArrayList<>(items);
         newItems.add(item);
 
+        update(newItems);
+    }
+
+    void update(List<Item> newItems) {
+        List<Item> oldItems = items;
 
         DiffCallback diffCallback = new DiffCallback(newItems, oldItems);
 
@@ -146,24 +192,36 @@ class Adapter extends RecyclerView.Adapter<MyViewHolder> {
         items.clear();
         items.addAll(newItems);
         diffResult.dispatchUpdatesTo(this);
-
 
     }
 
-    public void remove(int index) {
-        List<Item> oldItems = items;
+    public int remove(int index) {
         List<Item> newItems = new ArrayList<>(items);
 
-        System.out.println("remove : " + index);
-        newItems.remove(index);
+        int id = Integer.parseInt(newItems.remove(index).title);
+        update(newItems);
 
-        DiffCallback diffCallback = new DiffCallback(newItems, oldItems);
+        return id;
 
-        final DiffUtil.DiffResult diffResult = DiffUtil.calculateDiff(diffCallback);
+    }
 
-        items.clear();
-        items.addAll(newItems);
-        diffResult.dispatchUpdatesTo(this);
+    @TargetApi(Build.VERSION_CODES.N)
+    public void sort() {
+        List<Item> newItems = new ArrayList<>(items);
+        newItems.sort((a, b) -> {
+            return Integer.parseInt(a.title) - Integer.parseInt(b.title);
+        });
+
+        update(newItems);
+
+    }
+
+    public void updateLikeOrUnLike(int index) {
+        List<Item> newItems = new ArrayList<>(items);
+        Item item = newItems.remove(index);
+
+        newItems.add(index, new Item(item.title, !item.like));
+        update(newItems);
 
     }
 
